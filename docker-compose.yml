@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        WITH_CHROMIUM: "${WITH_CHROMIUM:-0}"
+    image: edaletli-kiraye:latest
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////app/data/app.db
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "${APP_PORT:-8501}:8501"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # HTTPS via Caddy — only if you have a domain:
+  #   DOMAIN=kiraye.example.com docker compose --profile https up -d
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    depends_on: [app]
+    environment:
+      DOMAIN: "${DOMAIN:-localhost}"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
